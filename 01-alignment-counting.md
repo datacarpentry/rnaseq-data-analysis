@@ -125,25 +125,20 @@ mkdir untrimmed
 mv ctl*.fastq uvb*.fastq untrimmed
 ```
 
-## Building an index
+## Annotations, reference genome and building indexes
 
-For the sake of time and compute requirements I've extracted reads that originate from a 100MB region of chromosome 4. In reality, you would want to do this with the entire genome. The first step here is to create an index.
-
-Google "Ensembl FTP" to get to the [FTP download page](http://useast.ensembl.org/info/data/ftp/index.html). Scroll down to the Human FASTA sequences. Click that link and copy the link to download the FASTA sequence for chromsome 4. While we're at it let's go ahead and download the gene set annotation (GTF file). We're looking at chromosome 4.
-
-This is what you *would* do if you were doing this on your own. But this can take a while so I've already downloaded and extracted these two files for you. See `~/genomedata`.
+To download the gene set annotation (GTF file), Google "Ensembl FTP" to get to the [FTP download page](http://useast.ensembl.org/info/data/ftp/index.html).
 
 ```bash
-wget ftp://ftp.ensembl.org/pub/release-77/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.chromosome.[0-22].fa.gz
 wget ftp://ftp.ensembl.org/pub/release-77/gtf/homo_sapiens/Homo_sapiens.GRCh38.77.gtf.gz
 gunzip Homo_sapiens*.gz
 ```
 
-Or just move them from genomedata in the home directory:
+Now download reference genome from "Ensembl FTP". For the sake of time and compute requirements we will first process only reads that originate from a 100MB region of chromosome 4. Scroll down to the Human FASTA sequences and copy the link to download the FASTA sequence for chromsome 4. 
 
 ```bash
-ls -l ~/genomedata
-mv ~/genomedata/* .
+wget ftp://ftp.ensembl.org/pub/release-77/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.chromosome.4.fa.gz
+gunzip Homo_sapiens.GRCh38.dna.chromosome.4.fa.gz
 ```
 
 Now, let's build an index. Tophat is a spliced aligner. It uses the Bowtie aligner under the hood. To run Bowtie we have to first build an index using a utility that comes with Bowtie. You only have to do this once each time you build a reference. First, let's get a little help, then get it started running while we talk about alignment and aligner indexes.
@@ -154,7 +149,20 @@ bowtie2-build chr4.fa chr4
 ```
 This should generate a set of bt2 files that will be used in the next step.
 
-Alternatively, download the genome reference file and genome annotation file from [Tophat reference genome download page](http://ccb.jhu.edu/software/tophat/igenomes.shtml).
+In reality, you would want to do this with the entire genome. Use a bash script to automate the download, extraction and indexing.
+
+```
+#!/bin/bash
+for i in `seq 1 22`;
+do
+  wget ftp://ftp.ensembl.org/pub/release-77/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.chromosome.$i.fa.gz
+	gunzip Homo_sapiens.GRCh38.dna.chromosome.$i.fa.gz
+	bowtie2-build Homo_sapiens.GRCh38.dna.chromosome.$i.fa chr$i
+done
+```
+
+Alternatively, download the genome reference file and genome annotation file from [Tophat reference genome download page](http://ccb.jhu.edu/software/tophat/igenomes.shtml). For details, see section "Preparing files" in the [BRB Digital Gene Expression](http://linus.nci.nih.gov/bdge/#preparingfiles) tutorial.
+
 
 ## Alignment and Counting with BRB-DGE
 
