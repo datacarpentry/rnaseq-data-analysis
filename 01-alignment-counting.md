@@ -161,7 +161,7 @@ This should generate a set of bt2 files that will be used in the next step.
 By now, the following files should be present:
 
 * The fastq files ctl1.fastq, ctl2.fastq, ctl3.fastq, uvb1.fastq, uvb2.fastq, and uvb3.fastq
-* The fasta files Homo_sapiens.GRCh38.dna.chromosome.[0-22].fa. This file should be renamed as chr4.fa.
+* The fasta files Homo_sapiens.GRCh38.dna.chromosome.[0-22].fa.
 * The gtf file Homo_sapiens.GRCh38.77.gtf
 * The bt2 files ch4.1.bt2, ch4.2.bt2, ch4.3.bt2, ch4.4.bt2, ch4.rev.1.bt2, and ch4.rev.2.bt2
 
