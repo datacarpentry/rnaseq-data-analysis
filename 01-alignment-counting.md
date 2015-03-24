@@ -45,11 +45,11 @@ fastqc -h
 fastqc *.fastq --threads 4 --outdir .
 ```
 
-Open up your SFTP client and enter your IP address and credentials. Transfer this data over to your computer to view it. You'll see how the last 5 bases of each read is pretty terrible quality, so let's trim those reads.
+You'll see how the last 5 bases of each read is pretty terrible quality, so let's trim those reads.
 
 ### Trimming: one sample
 
-Google "FASTX Toolkit" to find [Greg Hannon's FASTX-Toolkit software](http://hannonlab.cshl.edu/fastx_toolkit/). This lets you do lots of things for manipulating FASTQ and FASTA files. We're just going to use a feature to trim the end of the reads. You can see which tool you need by looking at the [online documentation](http://hannonlab.cshl.edu/fastx_toolkit/commandline.html).
+[Greg Hannon's FASTX-Toolkit software](http://hannonlab.cshl.edu/fastx_toolkit/) lets you do lots of things for manipulating FASTQ and FASTA files. We're just going to use a feature to trim the end of the reads. You can see which tool you need by looking at the [online documentation](http://hannonlab.cshl.edu/fastx_toolkit/commandline.html).
 
 First, let's run `fastx_trimmer` to get some help.
 
@@ -125,27 +125,20 @@ mkdir untrimmed
 mv ctl*.fastq uvb*.fastq untrimmed
 ```
 
-## Alignment
+## Annotations, reference genome and building indexes
 
-### Building an index
-
-For the sake of time and compute requirements I've extracted reads that originate from a 100MB region of chromosome 4. In reality, you would want to do this with the entire genome. The first step here is to create an index.
-
-Google "Ensembl FTP" to get to the [FTP download page](http://useast.ensembl.org/info/data/ftp/index.html). Scroll down to the Human FASTA sequences. Click that link and copy the link to download the FASTA sequence for chromsome 4. While we're at it let's go ahead and download the gene set annotation (GTF file). We're looking at chromosome 4.
-
-This is what you *would* do if you were doing this on your own. But this can take a while so I've already downloaded and extracted these two files for you. See `~/genomedata`.
+To download the gene set annotation (GTF file), Google "Ensembl FTP" to get to the [FTP download page](http://useast.ensembl.org/info/data/ftp/index.html).
 
 ```bash
-wget ftp://ftp.ensembl.org/pub/release-77/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.chromosome.[0-22].fa.gz
 wget ftp://ftp.ensembl.org/pub/release-77/gtf/homo_sapiens/Homo_sapiens.GRCh38.77.gtf.gz
 gunzip Homo_sapiens*.gz
 ```
 
-Or just move them from genomedata in the home directory:
+Now download reference genome from "Ensembl FTP". For the sake of time and compute requirements we will first process only reads that originate from a 100MB region of chromosome 4. Scroll down to the Human FASTA sequences and copy the link to download the FASTA sequence for chromsome 4. 
 
 ```bash
-ls -l ~/genomedata
-mv ~/genomedata/* .
+wget ftp://ftp.ensembl.org/pub/release-77/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.chromosome.4.fa.gz
+gunzip Homo_sapiens.GRCh38.dna.chromosome.4.fa.gz
 ```
 
 Now, let's build an index. Tophat is a spliced aligner. It uses the Bowtie aligner under the hood. To run Bowtie we have to first build an index using a utility that comes with Bowtie. You only have to do this once each time you build a reference. First, let's get a little help, then get it started running while we talk about alignment and aligner indexes.
@@ -156,16 +149,33 @@ bowtie2-build chr4.fa chr4
 ```
 This should generate a set of bt2 files that will be used in the next step.
 
-### Alignment and Counting with BRB Digital Gene Expression
+In reality, you would want to do this with the entire genome. Use a bash script to automate the download, extraction and indexing.
+
+```
+#!/bin/bash
+for i in `seq 1 22`;
+do
+  wget ftp://ftp.ensembl.org/pub/release-77/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.chromosome.$i.fa.gz
+	gunzip Homo_sapiens.GRCh38.dna.chromosome.$i.fa.gz
+	bowtie2-build Homo_sapiens.GRCh38.dna.chromosome.$i.fa chr$i
+done
+```
+
+Alternatively, download the genome reference file and genome annotation file from [Tophat reference genome download page](http://ccb.jhu.edu/software/tophat/igenomes.shtml). For details, see section "Preparing files" in the [BRB Digital Gene Expression](http://linus.nci.nih.gov/bdge/#preparingfiles) tutorial.
+
+
+## Alignment and Counting with BRB-DGE
+
+We will perform alignment and counting using BRB-DGE tool which automates the process by pipelining the necessary tools. In the next section, we will use these tools individually.
 
 By now, the following files should be present:
 
-* The fastq files ctl1.fastq, ctl2.fastq, ctl3.fastq, uvb1.fastq, uvb2.fastq, and uvb3.fastq
+* The fastq data files
 * The fasta files Homo_sapiens.GRCh38.dna.chromosome.[0-22].fa. This file should be renamed as chr4.fa.
 * The gtf file Homo_sapiens.GRCh38.77.gtf
-* The bt2 files ch4.1.bt2, ch4.2.bt2, ch4.3.bt2, ch4.4.bt2, ch4.rev.1.bt2, and ch4.rev.2.bt2
+* The bt2 files that were generated by bowtie2-build
 
-Those files will serve as input of the brg-dge tool, that should be run with the following command.
+Those files will serve as input of the BRB-DGE tool, that should be run with the following command.
 
 ```bash
 ./BDGE
@@ -177,9 +187,11 @@ The tool provides a GUI interface where the parameters for the alignment and cou
 * `Annotation Dir`: this parameter should contain the path to the fasta, gtf and bt2 files. 
 * `Output Dir`: this parameter should contain the path to the output folder, where the counter files will be stored.
 
+The tools requires that we construct sequencing design in a tab-delimited file samples.txt. This file has the following requirement. The header of samples.txt consists of LibraryName, LibraryLayout, fastq1 and fastq2. Each row represents one sample. It is convenient to download Sample and data relationship (.sdrf.txt) file from ArrayExpress and convert it to the required format.
+
 Once the parameters are properly configured, the preprocessing can be run by clicking the button `Run Preprocessing`. The program then performs the alignment and counting by mapping the fastq reads with the reference genome. A set of *.count files will be generated in the specified output dir.
 
-### Alignment with TopHat
+## Alignment with TopHat
 
 Let's try a small sample first. First, run `tophat -h` to get a little help. Let's also look at the [TopHat documentation online](http://ccb.jhu.edu/software/tophat/manual.shtml).
 
@@ -278,10 +290,11 @@ Take a look at other options for dealing with paired-end data, strand-specific d
 featureCounts -a chr4.gtf -o counts.txt -t exon -g gene_name -T 4 */accepted_hits.bam
 ```
 
-After mapping is complete, take a look at the summary file produced. Open up cyberduck and using SFTP, download the counts.txt file you just created. ***Finally, terminate the AWS EC2 instance after you've downloaded all the data you need.***
+After mapping is complete, take a look at the summary file counts.txt you just created. 
 
 ## Resources
 
+- [BRB Digital Gene Expression](http://linus.nci.nih.gov/bdge/): A tool for preprocess RNA-Seq data. 
 - [Illumina iGenomes](http://support.illumina.com/sequencing/sequencing_software/igenome.html): Gene annotations and pre-computed indexes for a variety of organisms.
 - Bowtie2 Manual: <http://bowtie-bio.sourceforge.net/bowtie2/manual.shtml>
 - Tophat2
